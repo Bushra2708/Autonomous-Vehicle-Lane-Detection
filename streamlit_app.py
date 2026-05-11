@@ -1,5 +1,5 @@
 import streamlit as st
-import tensorflow as tf
+import tflite_runtime.interpreter as tflite
 import numpy as np
 import cv2
 from PIL import Image
@@ -123,7 +123,7 @@ footer {
 @st.cache_resource
 def load_model():
 
-    interpreter = tf.lite.Interpreter(
+    interpreter = tflite.Interpreter(
         model_path="lane_model.tflite"
     )
 
@@ -160,9 +160,7 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
 
-    # ---------------------------------------------------
     # READ IMAGE
-    # ---------------------------------------------------
 
     image = Image.open(uploaded_file).convert("RGB")
 
@@ -170,9 +168,7 @@ if uploaded_file is not None:
 
     original = image.copy()
 
-    # ---------------------------------------------------
     # PREPROCESS
-    # ---------------------------------------------------
 
     resized = cv2.resize(image, (256, 128))
 
@@ -183,9 +179,7 @@ if uploaded_file is not None:
         axis=0
     )
 
-    # ---------------------------------------------------
     # PREDICTION
-    # ---------------------------------------------------
 
     with st.spinner("Processing image..."):
 
@@ -204,9 +198,7 @@ if uploaded_file is not None:
             output_details[0]['index']
         )
 
-    # ---------------------------------------------------
     # PROCESS MASK
-    # ---------------------------------------------------
 
     prediction = prediction[0]
 
@@ -214,28 +206,21 @@ if uploaded_file is not None:
 
     mask = (mask > 0.5).astype(np.uint8)
 
-    # ---------------------------------------------------
     # RESIZE MASK
-    # ---------------------------------------------------
 
     mask = cv2.resize(
         mask,
         (original.shape[1], original.shape[0])
     )
 
-    # ---------------------------------------------------
-    # CREATE BRIGHT YELLOW LANE MASK
-    # ---------------------------------------------------
+    # CREATE LANE MASK
 
     lane_mask = np.zeros_like(original)
 
-    # Yellow color
     lane_mask[:, :, 1] = 255
     lane_mask[:, :, 2] = 255
 
-    # ---------------------------------------------------
     # OVERLAY
-    # ---------------------------------------------------
 
     overlay = np.where(
         mask[:, :, np.newaxis] == 1,
@@ -251,9 +236,7 @@ if uploaded_file is not None:
 
     overlay = overlay.astype(np.uint8)
 
-    # ---------------------------------------------------
     # DISPLAY
-    # ---------------------------------------------------
 
     col1, col2 = st.columns(2)
 
@@ -273,9 +256,7 @@ if uploaded_file is not None:
             use_container_width=True
         )
 
-    # ---------------------------------------------------
-    # DOWNLOAD BUTTON
-    # ---------------------------------------------------
+    # DOWNLOAD
 
     result_image = Image.fromarray(overlay)
 
