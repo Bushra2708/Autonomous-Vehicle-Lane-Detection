@@ -69,14 +69,6 @@ html, body, [class*="css"] {
     border: 1px solid rgba(255,255,255,0.08);
 }
 
-.upload-box {
-    border: 1.5px dashed #7c3aed;
-    border-radius: 18px;
-    padding: 20px;
-    text-align: center;
-    background: rgba(255,255,255,0.03);
-}
-
 .stButton>button {
     width: 100%;
     border: none;
@@ -125,18 +117,21 @@ footer {
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LOAD MODEL
+# LOAD TFLITE MODEL
 # ---------------------------------------------------
 
 @st.cache_resource
 def load_model():
-    model = tf.keras.models.load_model(
-        "best_lane_detection_model.h5",
-        compile=False
-    )
-    return model
 
-model = load_model()
+    interpreter = tf.lite.Interpreter(
+        model_path="lane_model.tflite"
+    )
+
+    interpreter.allocate_tensors()
+
+    return interpreter
+
+interpreter = load_model()
 
 # ---------------------------------------------------
 # HEADER
@@ -165,7 +160,12 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
 
+    # ---------------------------------------------------
+    # READ IMAGE
+    # ---------------------------------------------------
+
     image = Image.open(uploaded_file).convert("RGB")
+
     image = np.array(image)
 
     original = image.copy()
@@ -175,9 +175,13 @@ if uploaded_file is not None:
     # ---------------------------------------------------
 
     resized = cv2.resize(image, (256, 128))
+
     normalized = resized / 255.0
 
-    input_image = np.expand_dims(normalized, axis=0)
+    input_image = np.expand_dims(
+        normalized.astype(np.float32),
+        axis=0
+    )
 
     # ---------------------------------------------------
     # PREDICTION
@@ -185,11 +189,29 @@ if uploaded_file is not None:
 
     with st.spinner("Processing image..."):
 
-        prediction = model.predict(input_image)
+        input_details = interpreter.get_input_details()
+
+        output_details = interpreter.get_output_details()
+
+        interpreter.set_tensor(
+            input_details[0]['index'],
+            input_image
+        )
+
+        interpreter.invoke()
+
+        prediction = interpreter.get_tensor(
+            output_details[0]['index']
+        )
+
+    # ---------------------------------------------------
+    # PROCESS MASK
+    # ---------------------------------------------------
 
     prediction = prediction[0]
 
     mask = prediction.squeeze()
+
     mask = (mask > 0.5).astype(np.uint8)
 
     # ---------------------------------------------------
@@ -202,20 +224,28 @@ if uploaded_file is not None:
     )
 
     # ---------------------------------------------------
-    # OVERLAY
+    # CREATE BRIGHT YELLOW LANE MASK
     # ---------------------------------------------------
 
-    # Create bright yellow lane mask
     lane_mask = np.zeros_like(original)
 
-    # Yellow Color (Best Visibility)
+    # Yellow color
     lane_mask[:, :, 1] = 255
     lane_mask[:, :, 2] = 255
 
-    # Overlay lane detection
+    # ---------------------------------------------------
+    # OVERLAY
+    # ---------------------------------------------------
+
     overlay = np.where(
         mask[:, :, np.newaxis] == 1,
-        cv2.addWeighted(original, 0.4, lane_mask, 0.9, 0),
+        cv2.addWeighted(
+            original,
+            0.4,
+            lane_mask,
+            0.9,
+            0
+        ),
         original
     )
 
@@ -228,16 +258,18 @@ if uploaded_file is not None:
     col1, col2 = st.columns(2)
 
     with col1:
+
         st.image(
             original,
-            caption="Original",
+            caption="Original Image",
             use_container_width=True
         )
 
     with col2:
+
         st.image(
             overlay,
-            caption="Lane Detection",
+            caption="Lane Detection Result",
             use_container_width=True
         )
 
@@ -248,7 +280,11 @@ if uploaded_file is not None:
     result_image = Image.fromarray(overlay)
 
     buf = io.BytesIO()
-    result_image.save(buf, format="PNG")
+
+    result_image.save(
+        buf,
+        format="PNG"
+    )
 
     byte_im = buf.getvalue()
 
