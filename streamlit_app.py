@@ -7,11 +7,6 @@ import io
 import os
 
 # ---------------------------------------------------
-# FIX FOR OLD .H5 MODEL (IMPORTANT)
-# ---------------------------------------------------
-keras.config.enable_unsafe_deserialization()
-
-# ---------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------
 st.set_page_config(
@@ -22,7 +17,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------
-# CUSTOM CSS (UNCHANGED)
+# CUSTOM CSS
 # ---------------------------------------------------
 st.markdown("""
 <style>
@@ -94,11 +89,15 @@ footer, #MainMenu {
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LOAD MODEL (FIXED)
+# LOAD MODEL
 # ---------------------------------------------------
 @st.cache_resource
 def load_model():
-    MODEL_PATH = os.path.join(os.path.dirname(__file__), "best_lane_detection_model.h5")
+
+    MODEL_PATH = os.path.join(
+        os.path.dirname(__file__),
+        "best_lane_detection_model.h5"
+    )
 
     model = tf.keras.models.load_model(
         MODEL_PATH,
@@ -112,40 +111,69 @@ model = load_model()
 # ---------------------------------------------------
 # HEADER
 # ---------------------------------------------------
-st.markdown('<div class="main-title">Autonomous Lane Detection</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Upload a road image to detect lanes</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="main-title">Autonomous Lane Detection</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="sub-title">Upload a road image to detect lanes</div>',
+    unsafe_allow_html=True
+)
 
 # ---------------------------------------------------
-# MAIN UI
+# MAIN CARD
 # ---------------------------------------------------
 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader(
+    "Upload Road Image",
+    type=["jpg", "jpeg", "png"]
+)
 
 if uploaded_file is not None:
 
+    # READ IMAGE
     image = Image.open(uploaded_file).convert("RGB")
     image = np.array(image)
 
     original = image.copy()
 
+    # ---------------------------------------------------
     # PREPROCESS
+    # ---------------------------------------------------
     resized = cv2.resize(image, (256, 128))
-    normalized = resized / 255.0
+
+    normalized = resized.astype(np.float32) / 255.0
+
     input_image = np.expand_dims(normalized, axis=0)
 
+    # ---------------------------------------------------
     # PREDICTION
-    with st.spinner("Processing image..."):
+    # ---------------------------------------------------
+    with st.spinner("Detecting lanes..."):
+
         prediction = model.predict(input_image)
 
+    # ---------------------------------------------------
+    # PROCESS MASK
+    # ---------------------------------------------------
     mask = prediction[0].squeeze()
+
     mask = (mask > 0.5).astype(np.uint8)
 
-    # RESIZE MASK
-    mask = cv2.resize(mask, (original.shape[1], original.shape[0]))
+    # RESIZE TO ORIGINAL SIZE
+    mask = cv2.resize(
+        mask,
+        (original.shape[1], original.shape[0])
+    )
 
-    # OVERLAY
+    # ---------------------------------------------------
+    # CREATE OVERLAY
+    # ---------------------------------------------------
     lane_mask = np.zeros_like(original)
+
+    # Cyan color
     lane_mask[:, :, 1] = 255
     lane_mask[:, :, 2] = 255
 
@@ -155,19 +183,32 @@ if uploaded_file is not None:
         original
     ).astype(np.uint8)
 
+    # ---------------------------------------------------
     # DISPLAY
+    # ---------------------------------------------------
     col1, col2 = st.columns(2)
 
     with col1:
-        st.image(original, caption="Original", use_container_width=True)
+        st.image(
+            original,
+            caption="Original Image",
+            use_container_width=True
+        )
 
     with col2:
-        st.image(overlay, caption="Lane Detection", use_container_width=True)
+        st.image(
+            overlay,
+            caption="Lane Detection Result",
+            use_container_width=True
+        )
 
+    # ---------------------------------------------------
     # DOWNLOAD
+    # ---------------------------------------------------
     result_image = Image.fromarray(overlay)
 
     buf = io.BytesIO()
+
     result_image.save(buf, format="PNG")
 
     st.download_button(
