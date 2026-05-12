@@ -3,5 +3,5 @@ numpy==1.23.5
 opencv-python-headless==4.8.0.76
 Pillow==10.3.0
 tensorflow==2.15.0
-protobuf==3.20.3
 h5py==3.10.0
+protobuf==3.20.3

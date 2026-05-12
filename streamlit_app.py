@@ -10,7 +10,7 @@ import os
 # PAGE CONFIG
 # ---------------------------------------------------
 st.set_page_config(
-    page_title="Lane Detection",
+    page_title="Autonomous Lane Detection",
     page_icon="🚘",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -21,6 +21,7 @@ st.set_page_config(
 # ---------------------------------------------------
 st.markdown("""
 <style>
+
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
 
 html, body, [class*="css"] {
@@ -41,7 +42,7 @@ html, body, [class*="css"] {
 
 .main-title {
     text-align: center;
-    font-size: 34px;
+    font-size: 38px;
     font-weight: 600;
     color: white;
     margin-bottom: 5px;
@@ -49,7 +50,7 @@ html, body, [class*="css"] {
 
 .sub-title {
     text-align: center;
-    font-size: 14px;
+    font-size: 15px;
     color: #94a3b8;
     margin-bottom: 30px;
 }
@@ -57,7 +58,7 @@ html, body, [class*="css"] {
 .glass-card {
     background: rgba(255,255,255,0.06);
     border-radius: 20px;
-    padding: 20px;
+    padding: 25px;
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255,255,255,0.08);
 }
@@ -69,6 +70,7 @@ html, body, [class*="css"] {
     font-size: 15px;
     font-weight: 500;
     color: white;
+    border: none;
     background: linear-gradient(135deg, #2563eb, #7c3aed);
 }
 
@@ -79,12 +81,14 @@ html, body, [class*="css"] {
     font-size: 15px;
     font-weight: 500;
     color: white;
+    border: none;
     background: linear-gradient(135deg, #059669, #10b981);
 }
 
 footer, #MainMenu {
     visibility: hidden;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -96,7 +100,7 @@ def load_model():
 
     MODEL_PATH = os.path.join(
         os.path.dirname(__file__),
-        "best_lane_detection_model.h5"
+        "lane_model.keras"
     )
 
     model = tf.keras.models.load_model(
@@ -106,6 +110,7 @@ def load_model():
 
     return model
 
+# LOAD MODEL
 model = load_model()
 
 # ---------------------------------------------------
@@ -117,7 +122,7 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="sub-title">Upload a road image to detect lanes</div>',
+    '<div class="sub-title">Upload a road image to detect lanes using Deep Learning</div>',
     unsafe_allow_html=True
 )
 
@@ -133,14 +138,16 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
 
+    # ---------------------------------------------------
     # READ IMAGE
+    # ---------------------------------------------------
     image = Image.open(uploaded_file).convert("RGB")
     image = np.array(image)
 
     original = image.copy()
 
     # ---------------------------------------------------
-    # PREPROCESS
+    # PREPROCESS IMAGE
     # ---------------------------------------------------
     resized = cv2.resize(image, (256, 128))
 
@@ -149,7 +156,7 @@ if uploaded_file is not None:
     input_image = np.expand_dims(normalized, axis=0)
 
     # ---------------------------------------------------
-    # PREDICTION
+    # MODEL PREDICTION
     # ---------------------------------------------------
     with st.spinner("Detecting lanes..."):
 
@@ -162,7 +169,7 @@ if uploaded_file is not None:
 
     mask = (mask > 0.5).astype(np.uint8)
 
-    # RESIZE TO ORIGINAL SIZE
+    # Resize mask back to original image size
     mask = cv2.resize(
         mask,
         (original.shape[1], original.shape[0])
@@ -173,7 +180,7 @@ if uploaded_file is not None:
     # ---------------------------------------------------
     lane_mask = np.zeros_like(original)
 
-    # Cyan color
+    # Cyan lane color
     lane_mask[:, :, 1] = 255
     lane_mask[:, :, 2] = 255
 
@@ -184,7 +191,7 @@ if uploaded_file is not None:
     ).astype(np.uint8)
 
     # ---------------------------------------------------
-    # DISPLAY
+    # DISPLAY RESULTS
     # ---------------------------------------------------
     col1, col2 = st.columns(2)
 
@@ -203,17 +210,17 @@ if uploaded_file is not None:
         )
 
     # ---------------------------------------------------
-    # DOWNLOAD
+    # DOWNLOAD BUTTON
     # ---------------------------------------------------
     result_image = Image.fromarray(overlay)
 
-    buf = io.BytesIO()
+    buffer = io.BytesIO()
 
-    result_image.save(buf, format="PNG")
+    result_image.save(buffer, format="PNG")
 
     st.download_button(
         label="Download Result",
-        data=buf.getvalue(),
+        data=buffer.getvalue(),
         file_name="lane_detection_result.png",
         mime="image/png"
     )
